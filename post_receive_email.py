@@ -1,14 +1,14 @@
-from __future__ import with_statement
+#!/usr/bin/env python3
 
 import re
-import smtplib
-import subprocess
+from smtplib import SMTP_SSL
+from subprocess import Popen, PIPE
 import sys
 import time
 import traceback
 from collections import defaultdict
-from email.mime.text import MIMEText
-from StringIO import StringIO
+from email.message import EmailMessage
+from io import StringIO
 
 MAILINGLIST = 'hooks.mailinglist'
 EMAILPREFIX = 'hooks.emailprefix'
@@ -32,30 +32,26 @@ class Mailer(object):
         if not self.recipients:
             return
 
-        mime_text = MIMEText(message, _charset='utf-8')
-        mime_text['From'] = self.sender
-        mime_text['Reply-To'] = reply_to
-        mime_text['To'] = ', '.join(self.recipients)
-        mime_text['Subject'] = subject
+        email = EmailMessage()
+        email.set_content(message)
+        email['From'] = self.sender
+        email['Reply-To'] = reply_to
+        email['To'] = ', '.join(self.recipients)
+        email['Subject'] = subject
 
-        server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(self.sender, self.sender_password)
-        server.sendmail(self.sender, self.recipients, 
-                        mime_text.as_string())
-        server.rset()
-        server.quit()
+        with SMTP_SSL(self.smtp_host, self.smtp_port) as server:
+            server.login(self.sender, self.sender_password)
+            server.send_message(email)
 
 def git_config_get(name):
-    p = subprocess.Popen(['git', 'config', '--get', name], 
-                         stdout=subprocess.PIPE)
+    p = Popen(['git', 'config', '--get', name], 
+            stdout=PIPE, universal_newlines=True)
     # Cut off the last \n character.
     return p.stdout.read()[:-1]
 
 def git_show(hash):
-    p = subprocess.Popen(['git', 'show', hash], stdout=subprocess.PIPE)
+    p = Popen(['git', 'show', hash], 
+            stdout=PIPE, universal_newlines=True)
     return p.stdout.read()
 
 def git_rev_parse(hash, short=False):
@@ -63,13 +59,13 @@ def git_rev_parse(hash, short=False):
     if short:
         args.append('--short')
     args.append(hash)
-    p = subprocess.Popen(args, stdout=subprocess.PIPE)
+    p = Popen(args, stdout=PIPE, universal_newlines=True)
     # Cut off the last \n character.
     return p.stdout.read()[:-1]
 
 def get_commit_info(hash):
-    p = subprocess.Popen(['git', 'show', '--pretty=format:%s%n%h', '-s', hash], 
-                         stdout=subprocess.PIPE)
+    p = Popen(['git', 'show', '--pretty=format:%s%n%h', '-s', hash],
+            stdout=PIPE, universal_newlines=True)
     s = StringIO(p.stdout.read())
     def undefined(): 
         return 'undefined'
@@ -99,9 +95,9 @@ def process_commits(commits, mailer, subject_prefix, subject_template):
             
 
 def get_commits(old_rev, new_rev):
-    p = subprocess.Popen(['git', 'log', '--pretty=format:%H', '--reverse',  
-                          '%s..%s' % (old_rev, new_rev)], 
-                         stdout=subprocess.PIPE)
+    p = Popen(['git', 'log', '--pretty=format:%H', '--reverse',  
+                '%s..%s' % (old_rev, new_rev)],
+                stdout=PIPE, universal_newlines=True)
     return p.stdout.read().split('\n')
 
 def parse_post_receive_line(l):
