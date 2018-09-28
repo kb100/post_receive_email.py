@@ -71,13 +71,14 @@ def parse_post_receive_line(l):
     return l.split()
 
 def ref_type_name(ref):
-    name = ref.split('/')[-1]
-    if ref.startswith("refs/heads/"):
-        return "branch", name
-    elif ref.startswith("refs/tags/"):
-        return "tag", name
+    refs_heads = "refs/heads/"
+    refs_tags = "refs/tags/"
+    if ref.startswith(refs_heads):
+        return "branch", ref[len(refs_heads):]
+    elif ref.startswith(refs_tags):
+        return "tag", ref[len(refs_tags):]
     else:
-        return "unknown", name
+        return "unknown", ref
 
 def is_dummy_rev(rev):
     return rev == "0000000000000000000000000000000000000000"
